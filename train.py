@@ -18,7 +18,7 @@ from ppo_cartpole.plot import plot_train_rewards, plot_test_rewards, plot_losses
 def parse_args():
     parser = argparse.ArgumentParser(description='PPO training for CartPole-v1')
     parser.add_argument('--env', type=str, default='CartPole-v1')
-    parser.add_argument('--episodes', type=int, default=1500)
+    parser.add_argument('--episodes', type=int, default=500)
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--threshold', type=float, default=475)
     parser.add_argument('--print-interval', type=int, default=10)
@@ -28,13 +28,12 @@ def parse_args():
     parser.add_argument('--entropy-coef', type=float, default=0.01)
     parser.add_argument(
         '--hidden-dims',
-        type=lambda s: [int(x) for x in s.split(',')],
-        default=[64, 64],
-        help='Comma-separated sizes for hidden layers, e.g. "64,64"'
+        type=int,
+        default=64,
     )
     parser.add_argument('--dropout', type=float, default=0.2)
     parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--batch-size', type=int, default=64)
+    parser.add_argument('--batch-size', type=int, default=128)
     return parser.parse_args()
 
 
@@ -79,7 +78,7 @@ def main():
     env_test = gym.make(args.env)
     obs_dim = env_train.observation_space.shape[0]
     action_dim = env_train.action_space.n
-
+    print(f'Observation space dimension: {obs_dim}, Action space dimension: {action_dim}')
     agent = create_agent(obs_dim, action_dim, args.hidden_dims, args.dropout)
     optimizer = optim.Adam(agent.parameters(), lr=args.lr)
 

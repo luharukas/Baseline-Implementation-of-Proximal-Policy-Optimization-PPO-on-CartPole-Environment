@@ -45,3 +45,30 @@ def evaluate(env, agent):
         total_reward += reward
         state = next_state
     return total_reward
+
+
+def calculate_surrogate_loss(
+    old_log_probs: torch.Tensor,
+    new_log_probs: torch.Tensor,
+    epsilon: float,
+    advantages: torch.Tensor
+) -> torch.Tensor:
+    """Compute the PPO clipped surrogate (policy) loss component."""
+    advantages = advantages.detach()
+    policy_ratio = (new_log_probs - old_log_probs).exp()
+    surrogate1 = policy_ratio * advantages
+    surrogate2 = torch.clamp(policy_ratio, 1.0 - epsilon, 1.0 + epsilon) * advantages
+    return torch.min(surrogate1, surrogate2)
+
+def calculate_losses(
+    surrogate_loss: torch.Tensor,
+    entropy: torch.Tensor,
+    entropy_coefficient: float,
+    returns: torch.Tensor,
+    values: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Calculate total policy and value losses for PPO update."""
+    entropy_bonus = entropy_coefficient * entropy
+    policy_loss = -(surrogate_loss + entropy_bonus).sum()
+    value_loss = torch.nn.functional.smooth_l1_loss(returns, values).sum()
+    return policy_loss, value_loss

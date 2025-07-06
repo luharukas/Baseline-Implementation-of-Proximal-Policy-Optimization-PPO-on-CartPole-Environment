@@ -7,7 +7,7 @@ import torch.distributions as distributions
 from torch.utils.data import DataLoader, TensorDataset
 
 from .model import MLPNetwork, ActorCritic
-from .utils import calculate_returns, calculate_advantages
+from .utils import calculate_returns, calculate_advantages, calculate_surrogate_loss, calculate_losses
 
 
 def create_agent(
@@ -45,11 +45,11 @@ def forward_pass(env, agent: ActorCritic, discount_factor: float) -> Tuple[
     states, actions, log_probs, values, rewards = [], [], [], [], []
     done = False
     episode_reward = 0.0
-    state, _ = env.reset()
+    state = env.reset()[0]
 
     agent.train()
     while not done:
-        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        state_tensor =torch.FloatTensor(state).unsqueeze(0)
         states.append(state_tensor)
 
         logits, value = agent(state_tensor)
@@ -65,16 +65,16 @@ def forward_pass(env, agent: ActorCritic, discount_factor: float) -> Tuple[
         actions.append(action)
         log_probs.append(log_prob)
         # remove all singleton dims to get scalar value prediction
-        values.append(value.squeeze())
+        values.append(value)
         rewards.append(reward)
 
         episode_reward += reward
         state = next_state
 
     states = torch.cat(states)
-    actions = torch.stack(actions)
-    old_log_probs = torch.stack(log_probs).detach()
-    values = torch.stack(values).detach()
+    actions = torch.cat(actions)
+    old_log_probs = torch.cat(log_probs)
+    values = torch.cat(values).squeeze(-1)
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
 
@@ -98,29 +98,29 @@ def update_policy(
     Update policy and value networks using PPO algorithm.
 
     Returns:
-        average policy loss, average value loss over all updates.
+        average policy loss, average value loss (averaged per PPO step).
     """
-    dataset = TensorDataset(states, actions, old_log_probs, advantages, returns)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    BATCH_SIZE = batch_size
     total_policy_loss = 0.0
     total_value_loss = 0.0
-
+    old_log_probs = old_log_probs.detach()
+    actions = actions.detach()
+    dataset = TensorDataset(states, actions, old_log_probs, advantages, returns)
+    loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
     for _ in range(ppo_steps):
         for b_states, b_actions, b_old_log_probs, b_advantages, b_returns in loader:
-            logits, values = agent(b_states)
-            values = values.squeeze(-1)
+            logits, value_pred = agent(b_states)
+            value_pred = value_pred.squeeze(-1)
             probs = torch.softmax(logits, dim=-1)
             dist = distributions.Categorical(probs)
 
-            entropy = dist.entropy().mean()
+            entropy = dist.entropy()
             new_log_probs = dist.log_prob(b_actions)
 
-            ratio = (new_log_probs - b_old_log_probs).exp()
-            surr1 = ratio * b_advantages
-            surr2 = torch.clamp(ratio, 1 - epsilon, 1 + epsilon) * b_advantages
-            policy_loss = -(torch.min(surr1, surr2).mean() + entropy_coeff * entropy)
-
-            value_loss = torch.nn.functional.mse_loss(b_returns, values)
+            surrogate_loss = calculate_surrogate_loss(
+                b_old_log_probs, new_log_probs, epsilon, b_advantages)
+            policy_loss, value_loss = calculate_losses(
+                surrogate_loss, entropy, entropy_coeff, b_returns, value_pred)
 
             optimizer.zero_grad()
             policy_loss.backward()
@@ -130,5 +130,6 @@ def update_policy(
             total_policy_loss += policy_loss.item()
             total_value_loss += value_loss.item()
 
-    num_updates = ppo_steps * len(loader)
-    return total_policy_loss / num_updates, total_value_loss / num_updates
+    return total_policy_loss / ppo_steps, total_value_loss / ppo_steps
+
+

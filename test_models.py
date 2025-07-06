@@ -35,8 +35,8 @@ def parse_args():
     )
     parser.add_argument(
         '--hidden-dims',
-        type=lambda s: [int(x) for x in s.split(',')],
-        default=[64, 64],
+        type=int,
+        default=64,
         help='Comma-separated sizes for hidden layers, e.g. "64,64"'
     )
     parser.add_argument(

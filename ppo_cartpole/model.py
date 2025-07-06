@@ -1,7 +1,7 @@
 """Model definitions for PPO agent: MLPNetwork and ActorCritic."""
 
 import torch.nn as nn
-
+import torch.nn.functional as f
 
 class MLPNetwork(nn.Module):
     """
@@ -13,22 +13,37 @@ class MLPNetwork(nn.Module):
         output_dim: Dimension of output features.
         dropout: Dropout probability applied after each hidden layer.
     """
-    def __init__(self, input_dim: int, hidden_dims: list[int], output_dim: int, dropout: float):
+    # This class defines a simple feedforward neural network to be used as a backbone
+    # for both the actor and critic networks.
+    def __init__(self, in_features, hidden_dimensions, out_features, dropout):
+        # Initialize the network layers.
+        # layer1: Linear transformation from input features to hidden dimensions.
         super().__init__()
-        layers: list[nn.Module] = []
-        prev_dim = input_dim
-        for h in hidden_dims:
-            layers.append(nn.Linear(prev_dim, h))
-            layers.append(nn.ReLU())
-            layers.append(nn.LayerNorm(h))
-            if dropout > 0:
-                layers.append(nn.Dropout(dropout))
-            prev_dim = h
-        layers.append(nn.Linear(prev_dim, output_dim))
-        self.net = nn.Sequential(*layers)
+        self.layer1 = nn.Linear(in_features, hidden_dimensions)
+        # layer2: Linear transformation between hidden layers.
+        self.layer2 = nn.Linear(hidden_dimensions, hidden_dimensions)
+        # layer3: Linear transformation from hidden dimensions to the output features.
+        self.layer3 = nn.Linear(hidden_dimensions, out_features)
+        # dropout: Dropout layer for regularization to prevent overfitting.
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        return self.net(x)
+        # Define the forward pass of the network.
+        # Apply the first linear layer.
+        x = self.layer1(x)
+        # Apply the ReLU activation function.
+        x = f.relu(x)
+        # Apply dropout.
+        x = self.dropout(x)
+        # Apply the second linear layer.
+        x = self.layer2(x)
+        # Apply the ReLU activation function.
+        x = f.relu(x)
+        # Apply dropout.
+        x = self.dropout(x)
+        # Apply the third linear layer to get the final output.
+        x = self.layer3(x)
+        return x
 
 
 class ActorCritic(nn.Module):
@@ -43,3 +58,4 @@ class ActorCritic(nn.Module):
         action_logits = self.actor(state)
         state_value = self.critic(state)
         return action_logits, state_value
+
