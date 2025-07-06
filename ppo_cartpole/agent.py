@@ -64,7 +64,8 @@ def forward_pass(env, agent: ActorCritic, discount_factor: float) -> Tuple[
 
         actions.append(action)
         log_probs.append(log_prob)
-        values.append(value.squeeze(-1))
+        # remove all singleton dims to get scalar value prediction
+        values.append(value.squeeze())
         rewards.append(reward)
 
         episode_reward += reward

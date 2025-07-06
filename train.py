@@ -7,6 +7,7 @@ import argparse
 
 import gymnasium as gym
 import numpy as np
+import torch
 import torch.optim as optim
 
 from ppo_cartpole.agent import create_agent, forward_pass, update_policy
@@ -17,7 +18,7 @@ from ppo_cartpole.plot import plot_train_rewards, plot_test_rewards, plot_losses
 def parse_args():
     parser = argparse.ArgumentParser(description='PPO training for CartPole-v1')
     parser.add_argument('--env', type=str, default='CartPole-v1')
-    parser.add_argument('--episodes', type=int, default=500)
+    parser.add_argument('--episodes', type=int, default=1500)
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--threshold', type=float, default=475)
     parser.add_argument('--print-interval', type=int, default=10)
@@ -88,6 +89,11 @@ def main():
     plot_train_rewards(train_rewards, args.threshold)
     plot_test_rewards(test_rewards, args.threshold)
     plot_losses(policy_losses, value_losses)
+
+    torch.save(agent.actor.state_dict(), 'actor.pth')
+    torch.save(agent.critic.state_dict(), 'critic.pth')
+    print("Saved actor model to actor.pth")
+    print("Saved critic model to critic.pth")
 
 
 if __name__ == '__main__':

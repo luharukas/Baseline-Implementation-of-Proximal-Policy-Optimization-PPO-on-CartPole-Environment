@@ -46,6 +46,13 @@ For example, to train with two hidden layers of sizes 128 and 64:
 python train.py --hidden-dims 128,64
 ```
 
+After training, the actor and critic models will be saved to `actor.pth` and `critic.pth`.
+You can evaluate a trained agent using the provided test script:
+
+```bash
+python test_models.py --actor-path actor.pth --critic-path critic.pth --episodes 100
+```
+
 ## Results
 
 After training, plots for training rewards, testing rewards, and policy/value losses will be displayed.
